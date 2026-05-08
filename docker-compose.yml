@@ -1,0 +1,60 @@
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: 3tiers-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: productdb
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: app_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - 3tiers-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d productdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    container_name: 3tiers-backend
+    restart: unless-stopped
+    environment:
+      PORT: 5000
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: productdb
+      DB_USER: app_user
+      DB_PASSWORD: app_password
+    ports:
+      - "5000:5000"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - 3tiers-network
+
+  frontend:
+    build: ./frontend
+    container_name: 3tiers-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - 3tiers-network
+
+volumes:
+  postgres_data:
+    name: 3tiers-postgres-data
+
+networks:
+  3tiers-network:
+    name: 3tiers-network
+    driver: bridge
